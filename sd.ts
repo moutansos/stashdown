@@ -25,11 +25,12 @@ yargs(Deno.args)
     }
   )
   .command(
-    "open <name>",
+    "open",
     "Open a note",
     (yargs: any) => {
       return yargs.positional("name", {
         describe: "Name of the note",
+        default: null,
       });
     },
     (args: Arguments) => {
@@ -41,8 +42,6 @@ yargs(Deno.args)
       openNote(name);
     }
   )
-  .strictCommands()
-  .demandCommand(1)
   .parse();
 
 async function generateNewNote(name: string | null): Promise<void> {
@@ -50,6 +49,7 @@ async function generateNewNote(name: string | null): Promise<void> {
     console.log("No name provided");
     Deno.exit(1);
   }
+
   const currentDate = new Date().toLocaleDateString("en-us", {
     weekday: "long",
     year: "numeric",
@@ -73,13 +73,16 @@ async function generateNewNote(name: string | null): Promise<void> {
 }
 
 async function openNote(name: string | null) {
-  if (!name) {
-    console.log("No name provided");
-    Deno.exit(1);
-  }
+  const cleanedName = name ?? (await getUserFileInput("Note file:"));
 
-  const fileName = name.endsWith(".md") ? name : `${name}.md`;
+  console.log("Opening note: ", cleanedName);
+
+  const fileName = cleanedName.endsWith(".md")
+    ? cleanedName
+    : `${cleanedName}.md`;
   const filePath = `./notes/${fileName}`;
+
+  console.log("File path: ", filePath);
 
   const fileExists = await exists(filePath);
   if (!fileExists) {
@@ -88,16 +91,23 @@ async function openNote(name: string | null) {
   }
 
   while (true) {
-    const noteText = await getUserInput("Note text:");
+    const noteText = await getUserInput(`${fileName}\\Note text:`);
 
     if (!noteText) {
       console.log("No text provided");
       continue;
-    } else if (noteText === "q" || noteText === "quit" || noteText === "exit") {
+    } else if (
+      noteText === ":q" ||
+      noteText === ":quit" ||
+      noteText === ":exit"
+    ) {
       break;
+    } else if (noteText === ":o" || noteText === ":open") {
+      await openNote(null);
+      continue;
     }
 
-    const lastDate = await getLastDateFromFile(name);
+    const lastDate = await getLastDateFromFile(cleanedName);
     console.log("Last date found: ", lastDate);
     const currentDate = new Date().toLocaleDateString("en-us", {
       weekday: "long",
@@ -146,11 +156,36 @@ async function appendToFile(filePath: string, text: string) {
   file.close();
 }
 
-async function getUserInput(text: string) {
+async function getUserInput(text: string): Promise<string> {
   const response = await enq.prompt({
     type: "input",
     name: "response",
     message: text,
+  });
+
+  return (response as any).response;
+}
+
+async function getUserFileInput(text: string): Promise<string> {
+  const fileNames: string[] = [];
+
+  for await (const dirEntry of Deno.readDir("./notes")) {
+    // is a directory and is a markdown file
+    if (!dirEntry.isDirectory && dirEntry.name.endsWith(".md")) {
+      fileNames.push(dirEntry.name);
+    }
+  }
+
+  if (fileNames.length === 0) {
+    console.log("No files found in notes folder");
+    Deno.exit(1);
+  }
+
+  const response = await enq.prompt({
+    type: "autocomplete",
+    name: "response",
+    message: text,
+    choices: fileNames,
   });
 
   return (response as any).response;

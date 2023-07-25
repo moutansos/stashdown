@@ -130,3 +130,4 @@ dist
 .pnp.*
 
 notes/**/*.md
+notes/**/*-assets

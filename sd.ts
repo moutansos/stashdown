@@ -5,6 +5,7 @@ import { exists } from "https://deno.land/std/fs/mod.ts";
 import { writeAll } from "https://deno.land/std@0.194.0/streams/write_all.ts";
 import enq from "npm:enquirer";
 
+
 yargs(Deno.args)
   .command(
     "new <name>",
@@ -105,6 +106,26 @@ async function openNote(name: string | null) {
     } else if (noteText === ":o" || noteText === ":open") {
       await openNote(null);
       continue;
+    } else if (noteText === ":ii" || noteText === ":insert image") {
+      const imageFile = await getUserInput("Image file location: ");
+
+      // check if image file exists
+      const imageFileExists = await exists(imageFile);
+      if (!imageFileExists) {
+        console.log("Image file does not exist");
+        continue;
+      }
+      //extract the extension from the image file
+      const imageFileExtension = imageFile.split(".").pop();
+      const newImageName = `${crypto.randomUUID()}.${imageFileExtension}`;
+      const assetsDirectory = await buildAssetFolderIfNotExist(cleanedName);
+      await Deno.copyFile(imageFile, `${assetsDirectory}/${newImageName}`);
+
+      const imageFilePathForMarkdown = `./${assetsDirectory.slice(7)}/${newImageName}`;
+
+      const imageText = `\n\n![${imageFile}](${imageFilePathForMarkdown})`;
+      await appendToFile(filePath, imageText);
+      continue;
     }
 
     const lastDate = await getLastDateFromFile(cleanedName);
@@ -115,7 +136,7 @@ async function openNote(name: string | null) {
       month: "short",
       day: "numeric",
     });
-    const dateHeaderText =
+    const dateHeaderText =  
       lastDate && lastDate === currentDate ? `` : `### ${currentDate}\n`;
 
     const currentTime = new Date().toLocaleTimeString("en-us");
@@ -163,7 +184,9 @@ async function getUserInput(text: string): Promise<string> {
     message: text,
   });
 
-  return (response as any).response;
+  const rawResponse = (response as any).response;
+  // remove any trailing whitespace and quotes
+  return rawResponse.trim().replace(/^"(.*)"$/, "$1");
 }
 
 async function getUserFileInput(text: string): Promise<string> {
@@ -189,4 +212,13 @@ async function getUserFileInput(text: string): Promise<string> {
   });
 
   return (response as any).response;
+}
+
+async function buildAssetFolderIfNotExist(fileName: string): Promise<string> {
+  const directoryPath = `./notes/${fileName}-assets`
+  const fileExists = await exists(directoryPath);
+  if (!fileExists) {
+    await Deno.mkdir(directoryPath);
+  }
+  return directoryPath;
 }

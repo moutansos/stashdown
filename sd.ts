@@ -5,7 +5,6 @@ import { exists } from "https://deno.land/std/fs/mod.ts";
 import { writeAll } from "https://deno.land/std@0.194.0/streams/write_all.ts";
 import enq from "npm:enquirer";
 
-
 yargs(Deno.args)
   .command(
     "new <name>",
@@ -46,10 +45,7 @@ yargs(Deno.args)
   .parse();
 
 async function generateNewNote(name: string | null): Promise<void> {
-  if (!name) {
-    console.log("No name provided");
-    Deno.exit(1);
-  }
+  const cleanedName = name ? name : (await getUserInput("Note file name: ")).trim();
 
   const currentDate = new Date().toLocaleDateString("en-us", {
     weekday: "long",
@@ -57,7 +53,7 @@ async function generateNewNote(name: string | null): Promise<void> {
     month: "short",
     day: "numeric",
   });
-  const fileName = name.endsWith(".md") ? name : `${name}.md`;
+  const fileName = cleanedName.endsWith(".md") ? cleanedName : `${cleanedName}.md`;
   const filePath = `./notes/${fileName}`;
   const fileExists = await exists(filePath);
   if (fileExists) {
@@ -71,6 +67,9 @@ async function generateNewNote(name: string | null): Promise<void> {
   }
   const fileString = getNoteTemplate(title, currentDate);
   await Deno.writeTextFile(filePath, fileString);
+
+  console.log("File created");
+  await openNote(cleanedName);
 }
 
 async function openNote(name: string | null) {
@@ -78,9 +77,7 @@ async function openNote(name: string | null) {
 
   console.log("Opening note: ", cleanedName);
 
-  const fileName = cleanedName.endsWith(".md")
-    ? cleanedName
-    : `${cleanedName}.md`;
+  const fileName = cleanedName.endsWith(".md") ? cleanedName : `${cleanedName}.md`;
   const filePath = `./notes/${fileName}`;
 
   console.log("File path: ", filePath);
@@ -97,11 +94,7 @@ async function openNote(name: string | null) {
     if (!noteText) {
       console.log("No text provided");
       continue;
-    } else if (
-      noteText === ":q" ||
-      noteText === ":quit" ||
-      noteText === ":exit"
-    ) {
+    } else if (noteText === ":q" || noteText === ":quit" || noteText === ":exit") {
       break;
     } else if (noteText === ":o" || noteText === ":open") {
       await openNote(null);
@@ -126,6 +119,38 @@ async function openNote(name: string | null) {
       const imageText = `\n\n![${imageFile}](${imageFilePathForMarkdown})`;
       await appendToFile(filePath, imageText);
       continue;
+    } else if (noteText === ":a" || noteText === ":archive") {
+      if (!(await getUserConfirmation("Are you sure you want to archive this note?"))) {
+        continue;
+      }
+      const archiveFolder = "./notes/archive";
+      await createFolderIfItDoesntExist(archiveFolder);
+      await Deno.copyFile(filePath, `${archiveFolder}/${fileName}`);
+      const assetsDirectory = buildAssetsDirectoryPath(cleanedName);
+      const assetsDirectoryExists = await exists(assetsDirectory);
+      if (assetsDirectoryExists) {
+        await Deno.rename(
+          assetsDirectory,
+          `${archiveFolder}/${buildAssetsDirectoryFolderName(cleanedName)}}`
+        );
+
+        await Deno.remove(assetsDirectory);
+      }
+      await Deno.remove(filePath);
+      break;
+    } else if (noteText === ":n" || noteText === ":new") {
+      await generateNewNote(null);
+      continue;
+    } else if (noteText === ":h" || noteText === ":help") {
+      console.log(`
+        :q or :quit or :exit - exit the program (or current note)
+        :o or :open - open a new note
+        :ii or :insert image - insert an image into the note
+        :a or :archive - archive the note
+        :n or :new - create a new note
+        :h or :help - show this help text
+      `);
+      continue;
     }
 
     const lastDate = await getLastDateFromFile(cleanedName);
@@ -136,8 +161,7 @@ async function openNote(name: string | null) {
       month: "short",
       day: "numeric",
     });
-    const dateHeaderText =  
-      lastDate && lastDate === currentDate ? `` : `### ${currentDate}\n`;
+    const dateHeaderText = lastDate && lastDate === currentDate ? `` : `### ${currentDate}\n`;
 
     const currentTime = new Date().toLocaleTimeString("en-us");
     const noteTextWithDate = `${dateHeaderText}  \n#### ${currentTime}:  \n${noteText}\n`;
@@ -214,11 +238,40 @@ async function getUserFileInput(text: string): Promise<string> {
   return (response as any).response;
 }
 
+async function getUserConfirmation(text: string): Promise<boolean> {
+  const response = await enq.prompt({
+    type: "confirm",
+    name: "response",
+    message: text,
+  });
+
+  return (response as any).response;
+}
+
 async function buildAssetFolderIfNotExist(fileName: string): Promise<string> {
-  const directoryPath = `./notes/${fileName}-assets`
+  const directoryPath = buildAssetsDirectoryPath(fileName);
   const fileExists = await exists(directoryPath);
   if (!fileExists) {
     await Deno.mkdir(directoryPath);
   }
   return directoryPath;
+}
+
+function buildAssetsDirectoryFolderName(fileName: string): string {
+  // remove the .md from the file name if it exists
+  const fileNameWithoutExtension = fileName.endsWith(".md")
+    ? fileName.substring(0, fileName.length - 3)
+    : fileName;
+  return `${fileNameWithoutExtension}-assets`;
+}
+
+function buildAssetsDirectoryPath(fileName: string): string {
+  return `./notes/${buildAssetsDirectoryFolderName(fileName)}`;
+}
+
+async function createFolderIfItDoesntExist(folderPath: string): Promise<void> {
+  const fileExists = await exists(folderPath);
+  if (!fileExists) {
+    await Deno.mkdir(folderPath);
+  }
 }

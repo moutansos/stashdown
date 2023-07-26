@@ -131,3 +131,5 @@ dist
 
 notes/**/*.md
 notes/**/*-assets
+
+notes/archive

@@ -7,52 +7,64 @@ import { YargsInstance } from "https://deno.land/x/yargs@v17.7.2-deno/build/lib/
 import { createFolderIfItDoesntExist, getFileCountInDirectory } from "./lib/folder-utils.ts";
 import { appendToFile } from "./lib/file-utils.ts";
 
-yargs(Deno.args)
-  .command(
-    "new <name>",
-    "Create a new note",
-    (yargs: YargsInstance) => {
-      return yargs
-        .options({
-          directory: { type: "string", alias: "d", default: "./" },
-        })
-        .positional("name", {
-          describe: "Name of the note",
-        });
-    },
-    (args: Arguments) => {
-      console.log(args);
-      if (args._.length > 1) {
-        console.log("Too many arguments supplied");
-        Deno.exit(1);
+function main() {
+  const args = yargs(Deno.args)
+    .usage("Usage: $0 <command>")
+    .command(
+      "new",
+      "Create a new note",
+      (yargs: YargsInstance) => {
+        return yargs
+          .options({
+            directory: { type: "string", alias: "d", default: "./" },
+            name: { type: "string", alias: "n", default: null },
+          })
+          .positional("name", {
+            describe: "Name of the note",
+          });
+      },
+      (args: Arguments) => {
+        if (args._.length > 1) {
+          console.log("Too many arguments supplied");
+          Deno.exit(1);
+        }
+        const name = args.name;
+        generateNewNote(name, args.directory);
       }
-      const name = args.name;
-      generateNewNote(name, args.directory);
-    }
-  )
-  .command(
-    "open",
-    "Open a note",
-    (yargs: YargsInstance) => {
-      return yargs
-        .options({
-          directory: { type: "string", alias: "d", default: "." },
-        })
-        .positional("name", {
-          describe: "Name of the note",
-          default: null,
-        });
-    },
-    (args: Arguments) => {
-      if (args._.length > 1) {
-        console.log("Too many arguments supplied");
-        Deno.exit(1);
+    )
+    .command(
+      "open",
+      "Open a note",
+      (yargs: YargsInstance) => {
+        return yargs
+          .options({
+            directory: { type: "string", alias: "d", default: "." },
+            name: { type: "string", alias: "n", default: null },
+          })
+          .positional("name", {
+            describe: "Name of the note",
+            default: null,
+          });
+      },
+      (args: Arguments) => {
+        if (args._.length > 1) {
+          console.log("Too many arguments supplied");
+          Deno.exit(1);
+        }
+        const name = args.name;
+        openNote(name, args.directory);
       }
-      const name = args.name;
-      openNote(name, args.directory);
-    }
-  )
-  .parse();
+    )
+    .help()
+    .parse();
+
+  if (args._.length === 0) {
+    console.log("No command supplied. Use --help for more information");
+    Deno.exit(1);
+  }
+}
+
+main();
 
 async function generateNewNote(name: string | null, workingDirectory: string): Promise<void> {
   createFolderIfItDoesntExist(workingDirectory);
@@ -209,7 +221,10 @@ async function getLastDateFromFile(name: string, workingDirectory: string): Prom
   return lastLine.substring(4);
 }
 
-async function buildAssetFolderIfNotExist(fileName: string, workingDirectory: string): Promise<string> {
+async function buildAssetFolderIfNotExist(
+  fileName: string,
+  workingDirectory: string
+): Promise<string> {
   const directoryPath = buildAssetsDirectoryPath(fileName, workingDirectory);
   const fileExists = await exists(directoryPath);
   if (!fileExists) {
@@ -237,9 +252,10 @@ function outputWorkingDirectoryText(workingDirectory: string) {
 async function redirectToNewNoteProcessIfFolderIsEmpty(workingDirectory: string) {
   const numberOfNotesFiles = await getFileCountInDirectory(workingDirectory, ".md");
   if (numberOfNotesFiles === 0) {
-    console.log("No notes found in the specified directory. Create a new note below to get started.");
+    console.log(
+      "No notes found in the specified directory. Create a new note below to get started."
+    );
     await generateNewNote(null, workingDirectory);
     Deno.exit(0);
   }
-
 }

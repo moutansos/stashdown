@@ -1,0 +1,1 @@
+deno compile .\sd.ts --allow-read --allow-write    

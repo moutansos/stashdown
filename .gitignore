@@ -129,7 +129,6 @@ dist
 .yarn/install-state.gz
 .pnp.*
 
-notes/**/*.md
-notes/**/*-assets
+notes
 
-notes/archive
+sd.exe

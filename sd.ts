@@ -162,7 +162,7 @@ async function openNote(name: string | null, workingDirectory: string) {
           `${archiveFolder}/${buildAssetsDirectoryFolderName(cleanedName)}}`
         );
 
-        await Deno.remove(assetsDirectory);
+        // await Deno.remove(assetsDirectory);
       }
       await Deno.remove(filePath);
       break;
